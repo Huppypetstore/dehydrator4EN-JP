@@ -6,6 +6,16 @@ from language_dict import LANGUAGES, MAIN_CATEGORIES, SUB_CATEGORIES, DEWATERING
 # 必须放在所有 Streamlit 命令之前
 st.set_page_config(page_title="📊 Inquiry Data Analysis APP", layout="wide")
 
+# 列名到 T key 的映射
+COLUMN_KEY_MAP = {
+    "業種大分類": "main_category",
+    "業種中分類": "sub_category",
+    "受注の有無": "order_status",
+    "Main Category": "main_category",
+    "Sub Category": "sub_category",
+    "Order Status": "order_status",
+}
+
 def load_and_process_data(uploaded_file, lang) -> pd.DataFrame:
     try:
         df = pd.read_excel(uploaded_file)
@@ -19,19 +29,9 @@ def load_and_process_data(uploaded_file, lang) -> pd.DataFrame:
         st.error(LANGUAGES[lang]["error"].format(msg=str(e)))
         return None
 
-def display_boxplot(df, value_col, category_col, show_outliers, lang, T, sorted_categories=None):
-    if df is not None and not df.empty:
-        points_mode = 'all' if show_outliers else False
-        fig = px.box(
-            df,
-            x=category_col,
-            y=value_col,
-            points=points_mode,
-            title=f"{T[category_col]} - {T[value_col]} Boxplot" if lang == "en" else f"{category_col}ごとの{value_col}の箱ひげ図",
-            category_orders={category_col: sorted_categories} if sorted_categories else None
-        )
-        fig.update_layout(xaxis_tickangle=-45, height=600)
-        st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True})
+def map_column_names(df, lang):
+    col_map = COLUMN_MAP[lang]
+    return df.rename(columns=col_map)
 
 def display_summary_chart(df, group_by, lang, T, color_col=None, sorted_categories=None):
     if df is not None and not df.empty:
@@ -46,12 +46,21 @@ def display_summary_chart(df, group_by, lang, T, color_col=None, sorted_categori
             sorted_categories = total_counts.sort_values('件数', ascending=False)[group_by].tolist()
         else:
             sorted_categories = summary[group_by].tolist() if group_by in summary.columns else []
+
+        key = COLUMN_KEY_MAP.get(group_by, group_by)
+        if lang == "en" and key in T:
+            title = f'{T[key]} Count'
+            labels = {group_by: '', '件数': 'Count'}
+        else:
+            title = f'{group_by}別の件数'
+            labels = {group_by: '', '件数': '件数'}
+
         fig = px.bar(
             summary,
             x=group_by,
             y='件数',
-            title=f'{T[group_by]} Count' if lang == "en" else f'{group_by}別の件数',
-            labels={group_by: '', '件数': 'Count' if lang == "en" else '件数'},
+            title=title,
+            labels=labels,
             color=color_col,
             text='件数',
             text_auto=True,
@@ -60,10 +69,6 @@ def display_summary_chart(df, group_by, lang, T, color_col=None, sorted_categori
         )
         fig.update_layout(xaxis_tickangle=-45, height=500)
         st.plotly_chart(fig, use_container_width=True)
-
-def map_column_names(df, lang):
-    col_map = COLUMN_MAP[lang]
-    return df.rename(columns=col_map)
 
 def main():
     # 语言选择
@@ -168,7 +173,17 @@ def main():
                         category_counts_main = df_for_analysis_main["業種大分類"].value_counts().reset_index()
                         category_counts_main.columns = ["業種大分類", 'count']
                         sorted_categories_main = category_counts_main.sort_values('count', ascending=False)["業種大分類"].tolist()
-                        display_boxplot(df_for_analysis_main, value_col_main, "業種大分類", show_outliers_main, lang, T, sorted_categories=sorted_categories_main)
+                        points_mode = 'all' if show_outliers_main else False
+                        fig_main = px.box(
+                            df_for_analysis_main,
+                            x="業種大分類",
+                            y=value_col_main,
+                            points=points_mode,
+                            title=f"{T['main_category']} - {T[value_col_main]} Boxplot" if lang == "en" else f"業種大分類ごとの{value_col_main}の箱ひげ図",
+                            category_orders={"業種大分類": sorted_categories_main}
+                        )
+                        fig_main.update_layout(xaxis_tickangle=-45, height=600)
+                        st.plotly_chart(fig_main, use_container_width=True, config={'scrollZoom': True})
                         st.markdown("---")
                         st.subheader(T["summary_stats"].format(col=value_col_main, group=T["main_category"]))
                         try:
@@ -194,7 +209,17 @@ def main():
                         category_counts_sub = df_for_analysis_sub["業種中分類"].value_counts().reset_index()
                         category_counts_sub.columns = ["業種中分類", 'count']
                         sorted_categories_sub = category_counts_sub.sort_values('count', ascending=False)["業種中分類"].tolist()
-                        display_boxplot(df_for_analysis_sub, value_col_sub, "業種中分類", show_outliers_sub, lang, T, sorted_categories=sorted_categories_sub)
+                        points_mode = 'all' if show_outliers_sub else False
+                        fig_sub = px.box(
+                            df_for_analysis_sub,
+                            x="業種中分類",
+                            y=value_col_sub,
+                            points=points_mode,
+                            title=f"{T['sub_category']} - {T[value_col_sub]} Boxplot" if lang == "en" else f"業種中分類ごとの{value_col_sub}の箱ひげ図",
+                            category_orders={"業種中分類": sorted_categories_sub}
+                        )
+                        fig_sub.update_layout(xaxis_tickangle=-45, height=600)
+                        st.plotly_chart(fig_sub, use_container_width=True, config={'scrollZoom': True})
                         st.markdown("---")
                         st.subheader(T["summary_stats"].format(col=value_col_sub, group=T["sub_category"]))
                         try:
